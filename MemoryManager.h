@@ -31,13 +31,12 @@ public:
 
   unsigned getMemoryLimit();
 
-  void printList();
 private:
   std::size_t wordSize;
   uint16_t totalSizeWords;
   std::size_t totalSizeBytes;
 
-  std::function<int(int, void *)> allocator;
+  std::function<int(int, void *)> policy;
 
   void *start;
 

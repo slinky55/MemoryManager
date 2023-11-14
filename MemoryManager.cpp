@@ -5,15 +5,15 @@
 #include <cassert>
 #include <cmath>
 #include <cstring>
+#include <cstdio>
 
 #include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <unistd.h>
+#include <sys/mman.h>
 
 MemoryManager::MemoryManager(unsigned _wordSize,
-                             std::function<int(int, void *)> _allocator)
-    : wordSize{_wordSize}, allocator{_allocator}, start{nullptr} {}
+                             std::function<int(int, void *)> _policy)
+    : wordSize{_wordSize}, policy{_policy}, start{nullptr} {}
 
 MemoryManager::~MemoryManager() { shutdown(); }
 
@@ -25,12 +25,12 @@ void MemoryManager::initialize(std::size_t _sizeInWords) {
   totalSizeBytes = _sizeInWords * wordSize;
   totalSizeWords = _sizeInWords;
 
-  //  start = reinterpret_cast<void *>(mmap(nullptr, totalSizeBytes,
-  //                                        PROT_READ | PROT_WRITE,
-  //                                        MAP_PRIVATE | MAP_ANONYMOUS, -1,
-  //                                        0));
+  start = mmap(nullptr, totalSizeBytes,
+              PROT_READ | PROT_WRITE,
+              MAP_PRIVATE | MAP_ANONYMOUS, -1,
+              0);
 
-  start = malloc(totalSizeBytes);
+//  start = malloc(totalSizeBytes);
   blocks.insert(std::pair<void *, uint16_t>(start, totalSizeWords));
 }
 
@@ -39,7 +39,7 @@ void *MemoryManager::allocate(std::size_t _sz) {
   std::size_t totalWords = std::ceil(static_cast<float>(_sz) / wordSize);
 
   auto rawList = reinterpret_cast<uint16_t *>(getList());
-  int offsetInWords = allocator(totalWords, rawList) * wordSize;
+  int offsetInWords = policy(totalWords, rawList) * wordSize;
   delete[] rawList;
 
   if (offsetInWords < 0) {
@@ -81,8 +81,8 @@ void MemoryManager::free(void *_address) {
 
 void MemoryManager::shutdown() {
   if (start) {
-    // munmap(start, totalSizeBytes);
-    free(start);
+    munmap(start, totalSizeBytes);
+//    free(start);
     blocks.clear();
     inUse.clear();
     start = nullptr;
@@ -124,8 +124,8 @@ void *MemoryManager::getList() {
 
 unsigned MemoryManager::getMemoryLimit() { return totalSizeBytes; }
 
-void MemoryManager::setAllocator(std::function<int(int, void *)> _allocator) {
-  allocator = _allocator;
+void MemoryManager::setAllocator(std::function<int(int, void *)> _policy) {
+  policy = _policy;
 }
 
 int MemoryManager::dumpMemoryMap(std::string_view _fileName) {
@@ -168,6 +168,8 @@ int MemoryManager::dumpMemoryMap(std::string_view _fileName) {
     perror("close");
     return -1;
   }
+
+  delete []list;
 
   return 0;
 }
@@ -213,19 +215,6 @@ void *MemoryManager::getBitmap() {
   delete[] list;
 
   return mapStart;
-}
-
-void MemoryManager::printList() {
-  int i = 0;
-  for (const auto &b : blocks) {
-    i++;
-    unsigned offset = reinterpret_cast<std::uintptr_t>(b.first) -
-                      reinterpret_cast<std::uintptr_t>(start);
-    offset /= wordSize;
-    std::cout << "Block " << i << " offset: " << offset << "\n";
-    std::cout << "Block " << i << " sizeInWords: " << b.second << "\n";
-  }
-  std::cout << "Total blocks: " << i << "\n\n";
 }
 
 void MemoryManager::compact() {
