@@ -40,13 +40,9 @@ private:
 
   void *start;
 
-  struct PointerCompare {
-      bool operator()(const void* a, const void* b) const {
-        return a < b;
-      }
-  };
 
-  using List = std::map<void*, uint16_t, PointerCompare>;
+
+  using List = std::map<void*, uint16_t>;
 
   List inUse;
   List blocks;
