@@ -40,8 +40,6 @@ private:
 
   void *start;
 
-
-
   using List = std::map<void*, uint16_t>;
 
   List inUse;
